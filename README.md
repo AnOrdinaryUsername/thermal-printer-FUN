@@ -67,3 +67,13 @@ Breaking it down
 1B 74 00 --> ESC t (Select character code table 0 which is [PC437](https://download4.epson.biz/sec_pubs/pos/reference_en/charcode/ref_charcode_en/page_00.html))  
 48..21 ----> Hello, World!  
 0A --------> Line feed (\n)  
+
+For fun, we can create a `.hex` file and send the raw data to the printer to see if it works. Using your hex editor of choice,
+copy and paste the hex dump and save it as `hello_world.hex`. We can then run the following command in our Linux terminal to tell the printer
+to print our data.
+
+```sh
+cat hello_world.hex > /dev/usb/lp0
+```
+
+Unsurprisingly, it does indeed work!
