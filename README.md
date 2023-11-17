@@ -2,6 +2,43 @@
 
 CPSC 440 project using a Raspberry Pi + Camera Module V1 + TM-T88V thermal printer to print images
 
+![The project in action](https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/3343bbff-023b-4a95-bfa5-595e228b7895)
+
+
+## Installation
+
+Clone the repo then go to the repo directory and run the following command.
+The `--system-site-packages` flag allows access to packages at the system level, such as `gpiozero`.
+
+```bash
+python3 -m venv --system-site-packages .venv
+```
+
+Activate the virtual environment
+```bash
+source .venv/bin/activate
+```
+
+Check location of Python interpreter and make sure its in `.venv`
+```bash
+which python3
+```
+
+Install requirements.txt
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Then create a `.env` file with the following variables
+
+```env
+IMAGE_DIR=
+VENDOR_ID=
+PRODUCT_ID=
+IN_EP=
+OUT_EP=
+```
+
 ## Understanding How EPSON Thermal Printers Works
 
 Many thermal printers use the ESC/POS page description language to specify
