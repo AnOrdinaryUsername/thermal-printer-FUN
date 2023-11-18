@@ -1,8 +1,45 @@
 # thermal-printer-fun
 
-CPSC 440 project using a Raspberry Pi + Camera Module V1 + TM-T88V thermal printer to print images
+A project using a Raspberry Pi 4 Model B and Camera Module V1 to take pictures and send them to
+a TM-T88V thermal printer for printing. Made for CPSC 440.
 
 ![The project in action](https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/3343bbff-023b-4a95-bfa5-595e228b7895)
+
+## Overview
+
+### About
+
+This project is a recreation of Polaroid instant cameras, complete with a display, camera, and printer. The breadboard, with wires
+connecting to GPIO pins on the Raspberry Pi, has two push buttons: one button near the passive buzzer captures and saves a picture
+and the other button tells the thermal printer to print the latest picture. The passive buzzer's purpose is to simulate a shutter 
+sound effect while an RGB LED acts as a status indicator for the current program state.
+
+### Parts
+
+| Hardware  | 
+| ------------- |
+| 1x Raspberry Pi 4 Model B |
+| 1x FNK0078 Freenove 5 Inch Touchscreen Monitor for Raspberry Pi  |
+| 1x TM-T88V Thermal Printer (with PS-180 Adapter + USB 2.0 A to B Cable) |
+| 1x Arducam 5MP OV5647 1080p Mini Camera Module with M12 Lens  |
+| 1x 32GB microSD Card |
+| 1x Raspberry Pi 15W Power Supply |
+
+| Breadboard stuff  | 
+| ------------- |
+| 1x Half-sized Solderless Breadboard |
+| 1x RGB LED |
+| 1x Passive Buzzer |
+| 2x Tactile Push Buttons |
+| 1x Male-Male Jumper Wire |
+| 9x Male-Female Jumper Wires |
+| 3x 470Ω Resistors |
+
+### Layout
+
+Orange and Yellow connect to GND pins. Everything else connects to GPIO pins.
+
+<img alt="Breadboard layout with wire connections" src="https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/bd5397c6-2326-4685-9e24-6b05e12c3848"  width=550 />
 
 
 ## Installation
@@ -37,6 +74,11 @@ VENDOR_ID=
 PRODUCT_ID=
 IN_EP=
 OUT_EP=
+```
+
+Finally, run the program. It should show a camera preview if all things are in order
+```bash
+python3 main.py
 ```
 
 ## Understanding How EPSON Thermal Printers Works
