@@ -32,13 +32,13 @@ class MainApplication(ttk.Frame):
         )
         self.list_entries = ListEntries(self.master, self.entries)
 
-        self.list_customization.grid(row=0, column=0, padx=15, pady=15)
+        self.list_customization.grid(row=0, column=0, padx=15, pady=15, sticky=NSEW)
         self.list_entries.grid(row=1, column=0, padx=15, pady=15)
         self.show_notes()
         self.create_buttonbox()
 
         # print(self.winfo_screenheight())
-        
+
     def show_notes(self):
         if not self.has_notes.get():
             self.notes_frame.destroy()
@@ -56,7 +56,12 @@ class MainApplication(ttk.Frame):
         label.pack(side=TOP, fill=X, padx=5)
 
         ent = ttk.Text(master=self.notes_frame, wrap="word", height=1, width=75)
+
+        # "1.0" ----> Input should be read from line one, character zero
+        # "end-1c" -> Read until the end of the text box is reached and delete newline char
+        # https://stackoverflow.com/a/14824164
         self.notes = ent.get("1.0", "end-1c")
+
         ent.pack(side=BOTTOM, padx=5, pady=10, fill=BOTH, expand=YES)
 
     def create_buttonbox(self):
@@ -161,19 +166,39 @@ class ListCustomization(ttk.Labelframe):
 
 class ListEntries(ttk.Labelframe):
     def __init__(self, master, entries):
-        super().__init__(master=master, text="Enter Entries", padding=(20, 10))
+        super().__init__(master=master, text="Enter Entries", padding=(20, 0, 0))
 
         self.entries = entries
 
+        # The following creates the scrollbar inside the Labelframe
+        self.canvas = ttk.Canvas(self)
+        self.canvas.pack(side=LEFT, fill=Y, expand=YES)
+
+        scrollbar = ttk.Scrollbar(self, orient=VERTICAL, command=self.canvas.yview)
+        scrollbar.pack(side=RIGHT, fill="y")
+
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        self.frame_inside_canvas = ttk.Frame(self.canvas)
+        self.canvas.create_window((0, 0), window=self.frame_inside_canvas, anchor="nw")
+        self.frame_inside_canvas.bind(
+            "<Configure>",
+            lambda event, canvas=self.canvas: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            ),
+        )
+        self.master.bind_all("<MouseWheel>", self.on_mousewheel)
+        # End scrollbar creation
+
         header_txt = "Entry Data"
-        header = ttk.Label(master=self, text=header_txt, width=50)
+        header = ttk.Label(master=self.frame_inside_canvas, text=header_txt, width=50)
         header.pack(fill=X, padx=5, pady=10)
 
         # Changes foreground color to black since white on yellow is too light
         style = Style()
         style.configure("primary.TButton", foreground="#000000")
         sub_btn = ttk.Button(
-            master=self,
+            master=self.frame_inside_canvas,
             text="Add Entry",
             command=self.on_add_entry,
             bootstyle=PRIMARY,
@@ -185,7 +210,7 @@ class ListEntries(ttk.Labelframe):
             self.create_form_entry(i)
 
     def create_form_entry(self, index, entry_text=""):
-        container = ttk.Frame(self)
+        container = ttk.Frame(self.frame_inside_canvas)
         container.pack(fill=X, expand=YES, pady=5)
 
         text = ttk.StringVar(value=entry_text)
@@ -206,6 +231,9 @@ class ListEntries(ttk.Labelframe):
         )
         sub_btn.pack(side=RIGHT, padx=5)
 
+    def on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
     def on_add_entry(self):
         self.create_form_entry(len(self.entries))
 
@@ -214,7 +242,7 @@ class ListEntries(ttk.Labelframe):
 
 
 if __name__ == "__main__":
-    app = ttk.Window(title="List Maker", themename="solar", resizable=(False, True))
+    app = ttk.Window(title="List Maker", themename="solar", resizable=(False, False))
     MainApplication(app)
     app.place_window_center()
 
