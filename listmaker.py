@@ -1,6 +1,12 @@
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.style import Style
+from functools import partial
+
+# For Image Creation
+from PIL import Image, ImageDraw, ImageFont
+import os
+import textwrap
 
 
 class MainApplication(ttk.Frame):
@@ -10,22 +16,22 @@ class MainApplication(ttk.Frame):
         # Settings for customizing list
         self.title = ttk.StringVar(value="")
         self.list_type = ttk.StringVar(value="checkbox")
-        self.notes = ttk.StringVar(value="")
         self.has_notes = ttk.BooleanVar(value=True)
-        self.notes_frame = ttk.Labelframe(
-            self.master, text="Add Extra Notes", padding=(20, 10)
-        )
         self.has_separators = ttk.BooleanVar(value=False)
         # End settings
 
         # Keeps track of all entries
         self.entries = []
 
+        # Keeps track of notes section
+        self.notes_frame = None
+        self.notes_box = None
+        self.notes = ""
+
         self.list_customization = ListCustomization(
             self.master,
             self.title,
             self.list_type,
-            self.notes,
             self.has_notes,
             self.has_separators,
             self.show_notes,
@@ -37,12 +43,10 @@ class MainApplication(ttk.Frame):
         self.show_notes()
         self.create_buttonbox()
 
-        # print(self.winfo_screenheight())
-
     def show_notes(self):
         if not self.has_notes.get():
             self.notes_frame.destroy()
-            self.notes = ttk.StringVar(value="")
+            self.notes = ""
             return
 
         self.notes_frame = ttk.Labelframe(
@@ -55,14 +59,10 @@ class MainApplication(ttk.Frame):
         label = ttk.Label(master=self.notes_frame, text="Notes", width=10)
         label.pack(side=TOP, fill=X, padx=5)
 
-        ent = ttk.Text(master=self.notes_frame, wrap="word", height=1, width=75)
-
-        # "1.0" ----> Input should be read from line one, character zero
-        # "end-1c" -> Read until the end of the text box is reached and delete newline char
-        # https://stackoverflow.com/a/14824164
-        self.notes = ent.get("1.0", "end-1c")
-
-        ent.pack(side=BOTTOM, padx=5, pady=10, fill=BOTH, expand=YES)
+        self.notes_box = ttk.Text(
+            master=self.notes_frame, wrap="word", height=1, width=75
+        )
+        self.notes_box.pack(side=BOTTOM, padx=5, pady=10, fill=BOTH, expand=YES)
 
     def create_buttonbox(self):
         container = ttk.Frame(self.master, bootstyle=DARK)
@@ -75,7 +75,7 @@ class MainApplication(ttk.Frame):
             "success.Outline.TButton", foreground="#000000", background="#14a98b"
         )
 
-        sub_btn = ttk.Button(
+        submit_btn = ttk.Button(
             master=container,
             text="Submit",
             command=self.on_submit,
@@ -83,21 +83,146 @@ class MainApplication(ttk.Frame):
             width=6,
             style="success.Outline.TButton",
         )
-        sub_btn.pack(side=RIGHT, padx=15, pady=10)
+        submit_btn.pack(side=RIGHT, padx=15)
+
+        preview_btn = ttk.Button(
+            master=container,
+            text="Preview",
+            command=self.on_submit,
+            bootstyle=LIGHT,
+            width=7,
+        )
+        preview_btn.pack(side=RIGHT, pady=10)
 
     def on_submit(self):
-        print("pog")
+        # "1.0" ----> Input should be read from line one, character zero
+        # "end-1c" -> Read until the end of the text box is reached and delete newline char
+        # https://stackoverflow.com/a/14824164
+        if self.has_notes.get():
+            self.notes = self.notes_box.get("1.0", "end-1c")
+
+        options = {
+            "list_type": self.list_type.get(),
+            "title": self.title.get(),
+            "has_notes": self.has_notes.get(),
+            "has_separators": self.has_separators.get(),
+        }
+
+        all_entries = [entry.get() for entry in self.entries]
+        # Removes all entries that are only whitespace
+        text_entries = list(filter(lambda entry: entry.strip(), all_entries))
+        options["entries"] = text_entries
+
+        if self.has_notes.get():
+            options["notes"] = self.notes
+
+        self.preview_list(options)
+
+    def preview_list(self, options):
+        """
+        512 is the max-width of the TM-T88V
+        1200 is just a large number due to the fact
+        we can't dynamically resize the image
+        """
+        width, height = 512, 1200
+        background_color = "white"
+        text_color = "black"
+        line_spacing = 30
+        margin = 20
+
+        # List types
+        black_square = "\u25AA"
+        bullet_point = "\u2022"
+        checkbox = "\u25A2"
+
+        # Load a font
+        font = ImageFont.truetype(
+            os.path.join(os.getcwd(), "assets", "Iosevka-Extended.ttf"),
+            24,
+            encoding="utf-16",
+        )
+        bold_font = ImageFont.truetype(
+            os.path.join(os.getcwd(), "assets", "Iosevka-ExtendedBold.ttf"),
+            32,
+            encoding="utf-16",
+        )
+
+        # For now, create a transparent image so that we can crop it later
+        image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+
+        y = margin
+        # Title text
+        draw.multiline_text(
+            (margin, y),
+            f'{options["title"]}',
+            fill=text_color,
+            font=bold_font,
+            align="center",
+        )
+        y += line_spacing
+
+        # Empty line space
+        draw.text((margin, y), "\n")
+        y += line_spacing
+
+        # Add tasks to the image
+        if options["list_type"] == "number":
+            entries = options["entries"]
+            entries_count = len(entries)
+            last = entries_count - 1
+
+            for number in range(entries_count):
+                draw.text(
+                    (margin, y),
+                    f"{number + 1}) {entries[number]}",
+                    fill=text_color,
+                    font=font,
+                )
+                y += line_spacing
+
+                if options["has_separators"]:
+                    if number != last:
+                        draw.line((0, 0, margin, y), "black")
+
+        else:
+            for task in options["entries"]:
+                draw.text(
+                    (margin, y), checkbox + f" {task}", fill=text_color, font=font
+                )
+                y += line_spacing
+
+        # Empty line space
+        draw.text((margin, y), "\n")
+        y += line_spacing * 2
+
+        if options["has_notes"]:
+            draw.text((margin, y), "Notes:", fill=text_color, font=font)
+            y += line_spacing
+            draw.multiline_text(
+                (margin, y), options["notes"], fill=text_color, font=font
+            )
+
+        print(image.width)
+
+        # See image in this for help: https://stackoverflow.com/a/71532590
+        bounding_box = image.getbbox()
+        cropped_image = image.crop([0, 0, width, bounding_box[3] + margin])
+
+        list_image = Image.new("RGBA", cropped_image.size, background_color)
+        list_image.paste(cropped_image, (0, 0), cropped_image)
+
+        print(list_image.width)
+
+        list_image.show()
 
 
 class ListCustomization(ttk.Labelframe):
-    def __init__(
-        self, master, title, list_type, notes, has_notes, has_separators, show_notes
-    ):
+    def __init__(self, master, title, list_type, has_notes, has_separators, show_notes):
         super().__init__(master=master, text="Customize Your List", padding=(20, 10))
 
         self.title = title
         self.list_type = list_type
-        self.notes = notes
         self.has_notes = has_notes
         self.has_separators = has_separators
 
@@ -206,15 +331,21 @@ class ListEntries(ttk.Labelframe):
         )
         sub_btn.pack(side=BOTTOM, padx=5, pady=10)
 
+        # Create 5 form entries at the start
         for i in range(5):
             self.create_form_entry(i)
 
-    def create_form_entry(self, index, entry_text=""):
+    def create_form_entry(self, index, new_frame=True):
         container = ttk.Frame(self.frame_inside_canvas)
         container.pack(fill=X, expand=YES, pady=5)
 
-        text = ttk.StringVar(value=entry_text)
-        self.entries.append(text)
+        try:
+            text = self.entries[index]
+        except IndexError:
+            text = ttk.StringVar(value="")
+
+        if new_frame:
+            self.entries.append(text)
 
         label = ttk.Label(master=container, text=f"Entry {index + 1}", width=10)
         label.pack(side=LEFT, padx=5)
@@ -225,7 +356,7 @@ class ListEntries(ttk.Labelframe):
         sub_btn = ttk.Button(
             master=container,
             text="Delete",
-            command=self.on_delete,
+            command=partial(self.on_delete, index),
             bootstyle=(OUTLINE, DANGER),
             width=6,
         )
@@ -237,8 +368,17 @@ class ListEntries(ttk.Labelframe):
     def on_add_entry(self):
         self.create_form_entry(len(self.entries))
 
-    def on_delete(self):
-        print("Pog")
+    def on_delete(self, index):
+        self.entries.pop(index)
+
+        # Destroy all form entry frames to update UI
+        for child in self.frame_inside_canvas.winfo_children():
+            if isinstance(child, ttk.Frame):
+                child.destroy()
+
+        # Rerender forms with updated index
+        for i in range(len(self.entries)):
+            self.create_form_entry(i, new_frame=False)
 
 
 if __name__ == "__main__":
