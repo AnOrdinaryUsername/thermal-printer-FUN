@@ -8,6 +8,12 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import textwrap
 
+# For Printing
+import io
+from escpos.printer import Usb
+from escpos.exceptions import Error
+import traceback
+
 
 class MainApplication(ttk.Frame):
     def __init__(self, master):
@@ -27,6 +33,9 @@ class MainApplication(ttk.Frame):
         self.notes_frame = None
         self.notes_box = None
         self.notes = ""
+
+        # The image with the list for printing
+        self.list_image = None
 
         self.list_customization = ListCustomization(
             self.master,
@@ -78,7 +87,7 @@ class MainApplication(ttk.Frame):
         submit_btn = ttk.Button(
             master=container,
             text="Submit",
-            command=self.on_submit,
+            command=self.print_image_list,
             bootstyle=(OUTLINE, SUCCESS),
             width=6,
             style="success.Outline.TButton",
@@ -88,16 +97,13 @@ class MainApplication(ttk.Frame):
         preview_btn = ttk.Button(
             master=container,
             text="Preview",
-            command=self.on_submit,
+            command=self.preview_list,
             bootstyle=LIGHT,
             width=7,
         )
         preview_btn.pack(side=RIGHT, pady=10)
 
-    def on_submit(self):
-        # "1.0" ----> Input should be read from line one, character zero
-        # "end-1c" -> Read until the end of the text box is reached and delete newline char
-        # https://stackoverflow.com/a/14824164
+    def get_settings(self):
         if self.has_notes.get():
             self.notes = self.notes_box.get("1.0", "end-1c")
 
@@ -116,9 +122,37 @@ class MainApplication(ttk.Frame):
         if self.has_notes.get():
             options["notes"] = self.notes
 
-        self.preview_list(options)
+        print(options)
 
-    def preview_list(self, options):
+        return options
+
+    def print_image_list(self):
+        self.generate_image()
+        """
+        Tells the printer to print the image
+        """
+        try:
+            printer = Usb(
+                idVendor=int(os.environ["VENDOR_ID"], 16),
+                idProduct=int(os.environ["PRODUCT_ID"], 16),
+                in_ep=int(os.environ["IN_EP"], 16),
+                out_ep=int(os.environ["OUT_EP"], 16),
+                profile="TM-T88V",
+            )
+
+            list_image = Image.open(self.list_image)
+            printer.image(list_image)
+            printer.cut()
+
+        except Error as err:
+            device_not_found = 90
+            usb_not_found = 91
+
+            traceback.print_exc()
+            print(f"ERROR {err.resultcode}: {err.msg}")
+
+    def generate_image(self):
+        options = self.get_settings()
         """
         512 is the max-width of the TM-T88V
         1200 is just a large number due to the fact
@@ -213,6 +247,14 @@ class MainApplication(ttk.Frame):
         list_image.paste(cropped_image, (0, 0), cropped_image)
 
         print(list_image.width)
+
+        image_bytes = io.BytesIO()
+        list_image.save(image_bytes, format="PNG")
+        self.list_image = image_bytes
+
+    def preview_list(self):
+        self.generate_image()
+        list_image = Image.open(self.list_image)
 
         list_image.show()
 
