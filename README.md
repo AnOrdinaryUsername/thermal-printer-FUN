@@ -5,6 +5,12 @@ a TM-T88V thermal printer for printing. Made for CPSC 440.
 
 ![The project in action](https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/3343bbff-023b-4a95-bfa5-595e228b7895)
 
+Listmaker GUI             |  Generated Image | Print Result
+:-------------------------:|:-------------------------: | :-------------------------:
+![image](https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/9fa0a551-4549-4bb8-8f5a-316adf99b483)  | ![image](https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/12b73120-b46d-4e8d-9f72-9fca1973f5cf) | ![image](https://github.com/AnOrdinaryUsername/thermal-printer-FUN/assets/57053268/4799645a-29b1-44d3-be27-58da52b732c7)
+
+
+
 ## Overview
 
 ### About
