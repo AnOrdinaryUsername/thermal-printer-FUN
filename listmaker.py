@@ -1,3 +1,4 @@
+# For making the GUI
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.style import Style
@@ -6,10 +7,10 @@ from functools import partial
 # For Image Creation
 from PIL import Image, ImageDraw, ImageFont
 import os
+import io
 import textwrap
 
 # For Printing
-import io
 from escpos.printer import Usb
 from escpos.exceptions import Error
 import traceback
@@ -37,6 +38,12 @@ class MainApplication(ttk.Frame):
         # The image with the list for printing
         self.list_image = None
 
+        # Add trash icon to delete button in entries
+        trash_png_path = os.path.join(os.getcwd(), "assets", "trash.png")
+        trash_hover_png_path = os.path.join(os.getcwd(), "assets", "trash-solid.png")
+        self.trash_icon = ttk.PhotoImage(file=trash_png_path)
+        self.trash_hover_icon = ttk.PhotoImage(file=trash_hover_png_path)
+
         self.list_customization = ListCustomization(
             self.master,
             self.title,
@@ -45,10 +52,12 @@ class MainApplication(ttk.Frame):
             self.has_separators,
             self.show_notes,
         )
-        self.list_entries = ListEntries(self.master, self.entries)
+        self.list_entries = ListEntries(
+            self.master, self.entries, self.trash_icon, self.trash_hover_icon
+        )
 
         self.list_customization.grid(row=0, column=0, padx=15, pady=15, sticky=NSEW)
-        self.list_entries.grid(row=1, column=0, padx=15, pady=15)
+        self.list_entries.grid(row=1, column=0, padx=15, pady=15, sticky=NSEW)
         self.show_notes()
         self.create_buttonbox()
 
@@ -68,9 +77,7 @@ class MainApplication(ttk.Frame):
         label = ttk.Label(master=self.notes_frame, text="Notes", width=10)
         label.pack(side=TOP, fill=X, padx=5)
 
-        self.notes_box = ttk.Text(
-            master=self.notes_frame, wrap="word", height=1, width=75
-        )
+        self.notes_box = ttk.Text(master=self.notes_frame, wrap="word", height=1)
         self.notes_box.pack(side=BOTTOM, padx=5, pady=10, fill=BOTH, expand=YES)
 
     def create_buttonbox(self):
@@ -145,9 +152,6 @@ class MainApplication(ttk.Frame):
             printer.cut()
 
         except Error as err:
-            device_not_found = 90
-            usb_not_found = 91
-
             traceback.print_exc()
             print(f"ERROR {err.resultcode}: {err.msg}")
 
@@ -181,7 +185,10 @@ class MainApplication(ttk.Frame):
             encoding="utf-16",
         )
 
-        # For now, create a transparent image so that we can crop it later
+        """
+        For now, create a transparent image so that we can crop it later
+        using Image.getbbox() and Image.crop()
+        """
         image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
 
@@ -200,12 +207,12 @@ class MainApplication(ttk.Frame):
         draw.text((margin, y), "\n")
         y += line_spacing
 
-        # Add tasks to the image
-        if options["list_type"] == "number":
-            entries = options["entries"]
-            entries_count = len(entries)
-            last = entries_count - 1
+        entries = options["entries"]
+        entries_count = len(entries)
+        last = entries_count - 1
 
+        # Add entries to the image
+        if options["list_type"] == "number":
             for number in range(entries_count):
                 draw.text(
                     (margin, y),
@@ -217,14 +224,47 @@ class MainApplication(ttk.Frame):
 
                 if options["has_separators"]:
                     if number != last:
-                        draw.line((0, 0, margin, y), "black")
+                        # Half and empty line space
+                        draw.text((margin, y), "\n")
+                        y += line_spacing / 2
 
+                        draw.line(
+                            (0 + margin, y, width - margin, y), width=2, fill="black"
+                        )
+
+                        # Half and empty line space
+                        draw.text((margin, y), "\n")
+                        y += line_spacing / 2
         else:
-            for task in options["entries"]:
+            list_type = None
+
+            if options["list_type"] == "bullet":
+                list_type = bullet_point
+            elif options["list_type"] == "checkbox":
+                list_type = checkbox
+
+            for number in range(entries_count):
                 draw.text(
-                    (margin, y), checkbox + f" {task}", fill=text_color, font=font
+                    (margin, y),
+                    list_type + f" {entries[number]}",
+                    fill=text_color,
+                    font=font,
                 )
                 y += line_spacing
+
+                if options["has_separators"]:
+                    if number != last:
+                        # Half-empty line space
+                        draw.text((margin, y), "\n")
+                        y += line_spacing / 2
+
+                        draw.line(
+                            (0 + margin, y, width - margin, y), width=2, fill="black"
+                        )
+
+                        # Half-empty line space
+                        draw.text((margin, y), "\n")
+                        y += line_spacing / 2
 
         # Empty line space
         draw.text((margin, y), "\n")
@@ -332,10 +372,12 @@ class ListCustomization(ttk.Labelframe):
 
 
 class ListEntries(ttk.Labelframe):
-    def __init__(self, master, entries):
+    def __init__(self, master, entries, trash, trash_hover):
         super().__init__(master=master, text="Enter Entries", padding=(20, 0, 0))
 
         self.entries = entries
+        self.trash_icon = trash
+        self.trash_hover_icon = trash_hover
 
         # The following creates the scrollbar inside the Labelframe
         self.canvas = ttk.Canvas(self)
@@ -397,12 +439,18 @@ class ListEntries(ttk.Labelframe):
 
         sub_btn = ttk.Button(
             master=container,
-            text="Delete",
+            image=self.trash_icon,
+            compound=LEFT,
             command=partial(self.on_delete, index),
             bootstyle=(OUTLINE, DANGER),
-            width=6,
         )
         sub_btn.pack(side=RIGHT, padx=5)
+
+        # Changes button image to white on hover and pink on leave
+        sub_btn.bind(
+            "<Enter>", lambda event: sub_btn.config(image=self.trash_hover_icon)
+        )
+        sub_btn.bind("<Leave>", lambda event: sub_btn.config(image=self.trash_icon))
 
     def on_mousewheel(self, event):
         self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
