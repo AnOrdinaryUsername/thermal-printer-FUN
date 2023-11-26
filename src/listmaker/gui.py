@@ -1,14 +1,14 @@
+import os
+from PIL import Image, UnidentifiedImageError
+
+from image import ListImage
+
 # For making the GUI
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from ttkbootstrap.style import Style
+from ttkbootstrap.dialogs.dialogs import Messagebox
 from functools import partial
-
-# For Image Creation
-from PIL import Image, ImageDraw, ImageFont
-import os
-import io
-import textwrap
 
 # For Printing
 from escpos.printer import Usb
@@ -36,7 +36,7 @@ class MainApplication(ttk.Frame):
         self.notes = ""
 
         # The image with the list for printing
-        self.list_image = None
+        self.list_image = ListImage()
 
         # Add trash icon to delete button in entries
         trash_png_path = os.path.join(os.getcwd(), "assets", "trash.png")
@@ -44,7 +44,8 @@ class MainApplication(ttk.Frame):
         self.trash_icon = ttk.PhotoImage(file=trash_png_path)
         self.trash_hover_icon = ttk.PhotoImage(file=trash_hover_png_path)
 
-        self.list_customization = ListCustomization(
+
+        self.list_customization = Customization(
             self.master,
             self.title,
             self.list_type,
@@ -52,7 +53,7 @@ class MainApplication(ttk.Frame):
             self.has_separators,
             self.show_notes,
         )
-        self.list_entries = ListEntries(
+        self.list_entries = ListItems(
             self.master, self.entries, self.trash_icon, self.trash_hover_icon
         )
 
@@ -110,6 +111,15 @@ class MainApplication(ttk.Frame):
         )
         preview_btn.pack(side=RIGHT, pady=10)
 
+        save_btn = ttk.Button(
+            master=container,
+            text="Save Image",
+            command=self.save_image,
+            bootstyle=(OUTLINE, INFO),
+            width=10,
+        )
+        save_btn.pack(side=LEFT, padx=15)
+
     def get_settings(self):
         if self.has_notes.get():
             self.notes = self.notes_box.get("1.0", "end-1c")
@@ -134,7 +144,12 @@ class MainApplication(ttk.Frame):
         return options
 
     def print_image_list(self):
-        self.generate_image()
+        options = self.get_settings()
+        list_image = self.construct_image(options)
+
+        if not list_image:
+            return
+
         """
         Tells the printer to print the image
         """
@@ -147,7 +162,6 @@ class MainApplication(ttk.Frame):
                 profile="TM-T88V",
             )
 
-            list_image = Image.open(self.list_image)
             printer.image(list_image)
             printer.cut()
 
@@ -155,151 +169,41 @@ class MainApplication(ttk.Frame):
             traceback.print_exc()
             print(f"ERROR {err.resultcode}: {err.msg}")
 
-    def generate_image(self):
-        options = self.get_settings()
-        """
-        512 is the max-width of the TM-T88V
-        1200 is just a large number due to the fact
-        we can't dynamically resize the image
-        """
-        width, height = 512, 1200
-        background_color = "white"
-        text_color = "black"
-        line_spacing = 30
-        margin = 20
-
-        # List types
-        black_square = "\u25AA"
-        bullet_point = "\u2022"
-        checkbox = "\u25A2"
-
-        # Load a font
-        font = ImageFont.truetype(
-            os.path.join(os.getcwd(), "assets", "Iosevka-Extended.ttf"),
-            24,
-            encoding="utf-16",
-        )
-        bold_font = ImageFont.truetype(
-            os.path.join(os.getcwd(), "assets", "Iosevka-ExtendedBold.ttf"),
-            32,
-            encoding="utf-16",
-        )
-
-        """
-        For now, create a transparent image so that we can crop it later
-        using Image.getbbox() and Image.crop()
-        """
-        image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-
-        y = margin
-        # Title text
-        draw.multiline_text(
-            (margin, y),
-            f'{options["title"]}',
-            fill=text_color,
-            font=bold_font,
-            align="center",
-        )
-        y += line_spacing
-
-        # Empty line space
-        draw.text((margin, y), "\n")
-        y += line_spacing
-
-        entries = options["entries"]
-        entries_count = len(entries)
-        last = entries_count - 1
-
-        # Add entries to the image
-        if options["list_type"] == "number":
-            for number in range(entries_count):
-                draw.text(
-                    (margin, y),
-                    f"{number + 1}) {entries[number]}",
-                    fill=text_color,
-                    font=font,
-                )
-                y += line_spacing
-
-                if options["has_separators"]:
-                    if number != last:
-                        # Half and empty line space
-                        draw.text((margin, y), "\n")
-                        y += line_spacing / 2
-
-                        draw.line(
-                            (0 + margin, y, width - margin, y), width=2, fill="black"
-                        )
-
-                        # Half and empty line space
-                        draw.text((margin, y), "\n")
-                        y += line_spacing / 2
-        else:
-            list_type = None
-
-            if options["list_type"] == "bullet":
-                list_type = bullet_point
-            elif options["list_type"] == "checkbox":
-                list_type = checkbox
-
-            for number in range(entries_count):
-                draw.text(
-                    (margin, y),
-                    list_type + f" {entries[number]}",
-                    fill=text_color,
-                    font=font,
-                )
-                y += line_spacing
-
-                if options["has_separators"]:
-                    if number != last:
-                        # Half-empty line space
-                        draw.text((margin, y), "\n")
-                        y += line_spacing / 2
-
-                        draw.line(
-                            (0 + margin, y, width - margin, y), width=2, fill="black"
-                        )
-
-                        # Half-empty line space
-                        draw.text((margin, y), "\n")
-                        y += line_spacing / 2
-
-        # Empty line space
-        draw.text((margin, y), "\n")
-        y += line_spacing * 2
-
-        if options["has_notes"]:
-            draw.text((margin, y), "Notes:", fill=text_color, font=font)
-            y += line_spacing
-            draw.multiline_text(
-                (margin, y), options["notes"], fill=text_color, font=font
-            )
-
-        print(image.width)
-
-        # See image in this for help: https://stackoverflow.com/a/71532590
-        bounding_box = image.getbbox()
-        cropped_image = image.crop([0, 0, width, bounding_box[3] + margin])
-
-        list_image = Image.new("RGBA", cropped_image.size, background_color)
-        list_image.paste(cropped_image, (0, 0), cropped_image)
-
-        print(list_image.width)
-
-        image_bytes = io.BytesIO()
-        list_image.save(image_bytes, format="PNG")
-        self.list_image = image_bytes
-
     def preview_list(self):
-        self.generate_image()
-        list_image = Image.open(self.list_image)
+        options = self.get_settings()
+        title = options["title"] or "Image"
+        
+        image = self.construct_image(options)
+        
+        if image:
+            image.show(title)
 
-        list_image.show()
+    def construct_image(self, options):
+        image = None
+
+        try:
+            self.list_image.generate(options)
+            
+            image = Image.open(self.list_image.bytes)
+        except TypeError:
+            Messagebox.show_error(message="The image is empty. Did you enter any data?", title="Empty Image")
+        except UnidentifiedImageError:
+            Messagebox.show_error(message="There is an issue with the image bytes.", title="UnidentifiedImageError")
+
+        return image
 
 
-class ListCustomization(ttk.Labelframe):
+    def save_image(self):
+        options = self.get_settings()
+        title = options["title"] or "image"
+        
+        image = self.construct_image(options)
+
+        if image:
+            image.save(f"{title}.png")
+
+
+class Customization(ttk.Labelframe):
     def __init__(self, master, title, list_type, has_notes, has_separators, show_notes):
         super().__init__(master=master, text="Customize Your List", padding=(20, 10))
 
@@ -323,24 +227,24 @@ class ListCustomization(ttk.Labelframe):
 
     def create_form_entry(self, label, variable):
         container = ttk.Frame(self)
-        container.pack(fill=X, expand=YES, pady=5)
+        container.pack(fill=X, expand=YES, pady=15)
 
         label = ttk.Label(master=container, text=label.title(), width=10)
         label.pack(side=LEFT, padx=5)
 
         ent = ttk.Entry(master=container, textvariable=variable)
-        ent.pack(side=LEFT, padx=5, fill=X, expand=YES)
+        ent.pack(side=LEFT, fill=X, expand=YES)
 
     def create_radio_row(self, label):
         type_row = ttk.Frame(self)
         type_row.pack(fill=X, expand=YES)
         type_label = ttk.Label(type_row, text=label.title(), width=10)
-        type_label.pack(side=LEFT, padx=5, pady=10)
+        type_label.grid(row=0, column=0, padx=5, pady=10)
 
         checkbox_opt = ttk.Radiobutton(
             master=type_row, text="Checkbox", variable=self.list_type, value="checkbox"
         )
-        checkbox_opt.pack(side=LEFT)
+        checkbox_opt.grid(row=0, column=1, sticky=W)
 
         bullet_opt = ttk.Radiobutton(
             master=type_row,
@@ -348,13 +252,28 @@ class ListCustomization(ttk.Labelframe):
             variable=self.list_type,
             value="bullet",
         )
-        bullet_opt.pack(side=LEFT, padx=15)
+        bullet_opt.grid(row=0, column=2, sticky=W, padx=15)
 
         number_opt = ttk.Radiobutton(
             master=type_row, text="Numbered", variable=self.list_type, value="number"
         )
-        number_opt.pack(side=LEFT)
+        number_opt.grid(row=0, column=3, sticky=W)
         number_opt.invoke()
+
+        arrow_opt = ttk.Radiobutton(
+            master=type_row, text="Arrow", variable=self.list_type, value="arrow"
+        )
+        arrow_opt.grid(row=1, column=1, sticky=W)
+
+        arrowhead_opt = ttk.Radiobutton(
+            master=type_row, text="Arrowhead", variable=self.list_type, value="arrowhead"
+        )
+        arrowhead_opt.grid(row=1, column=2, sticky=W, padx=15)
+
+        triangle_opt = ttk.Radiobutton(
+            master=type_row, text="Triangle", variable=self.list_type, value="triangle"
+        )
+        triangle_opt.grid(row=1, column=3, sticky=W)
 
     def create_checkbutton(self, text, variable, command):
         check_row = ttk.Frame(self)
@@ -371,7 +290,7 @@ class ListCustomization(ttk.Labelframe):
         ).pack(side=RIGHT)
 
 
-class ListEntries(ttk.Labelframe):
+class ListItems(ttk.Labelframe):
     def __init__(self, master, entries, trash, trash_hover):
         super().__init__(master=master, text="Enter Entries", padding=(20, 0, 0))
 
